@@ -1,0 +1,6 @@
+#--------------
+# compute safety index
+#--------------
+int32 input
+---
+float64 output
