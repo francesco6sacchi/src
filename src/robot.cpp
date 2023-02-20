@@ -29,7 +29,7 @@ Eigen::Matrix4d Link::DenavitHartenbergMatrix(double theta) {
 
 }
 
-// RobotGripper::RobotGripper(double alfa, double a, double d, double offset, double gamma, string path) {
+// RobotGripper::RobotGripper(bool isClosed, double alfa, double a, double d, double offset, double gamma, string path): Link(alfa,a,d,offset,gamma,path){
     
 // // 	this->mPath = path;
 // //	this->mRelativeDisplacement = pos;
@@ -69,7 +69,8 @@ Robot::Robot(ros::NodeHandle& input) {
 	}
 	this->mBaseTriangularMesh = &robot_mesh;
 
-	this->ComputeCoefficients();
+	this->ComputeCoefficients(); // Ragaglia's coefficients: computed once because they are
+								 // constant regardless the position of the triangle
 
 	this->csf=0;
     this->mPosition = Eigen::Vector3d::Zero();
@@ -78,8 +79,6 @@ Robot::Robot(ros::NodeHandle& input) {
     this->mAngularVelocity = Eigen::Vector3d::Zero();
     this->mIsInitialized = false;
 	this->pBase = Eigen::Matrix4d::Identity(4,4);
-	// this->pBase = new Eigen::Matrix4d(); 
-	// this->pBase->Identity();
 	// this->pRobotName = new WCHAR[256]; //? WCHAR non viene trovato
 
 	this->pointcloud = this->nh.advertise<sensor_msgs::PointCloud>("pc_topic",1);
@@ -181,7 +180,7 @@ void Robot::UpdateRobotMesh(){
 	vector<Triangle>::iterator it_t;
     Rot = this->GetBase().block <3, 3> (0, 0);
 	Tran = this->GetBase().block <3, 1> (0, 3);
-	*(this->mBaseTriangularMesh) = vector<Triangle>(); // Per cancellare la mesh già presente
+	*(this->mBaseTriangularMesh) = vector<Triangle>(); // To delete already existing mesh
 
 	geometry_msgs::Point32 p1, p2, p3;
 	vector<geometry_msgs::Point32> points;
@@ -201,17 +200,19 @@ void Robot::UpdateRobotMesh(){
 			
 		Rot = this->GetCumulatedMatrix(i)->block<3, 3>(0, 0);
 		Tran = this->GetCumulatedMatrix(i)->block<3, 1>(0, 3);
-		vector<Triangle> new_mesh;
+		vector<Triangle> new_mesh; // Temporary mesh used to update the mesh of each link
+
 		for(it_t = this->GetLinkAt(i)->GetTriangularMesh()->begin(); it_t != this->GetLinkAt(i)->GetTriangularMesh()->end(); ++it_t) {    // link mesh
 		
 			n3 = Rot * (*it_t->GetNormal());
 			a3 = Rot * (*it_t->GetPoint1()) + Tran;
 			b3 = Rot * (*it_t->GetPoint2()) + Tran;
 			c3 = Rot * (*it_t->GetPoint3()) + Tran;
-			this->mBaseTriangularMesh->push_back(Triangle(a3, b3, c3, n3));
-			new_mesh.push_back(Triangle(a3, b3, c3, n3));
+			this->mBaseTriangularMesh->push_back(Triangle(a3, b3, c3, n3)); // updating mesh of the whole robot
 
-			p1.x = a3(0); p1.y = a3(1); p1.z = a3(2);
+			new_mesh.push_back(Triangle(a3, b3, c3, n3)); // saving mesh of this link in new_mesh
+
+			p1.x = a3(0); p1.y = a3(1); p1.z = a3(2); // these lines print the updated mesh on RVIZ
 			p2.x = b3(0); p2.y = b3(1); p2.z = b3(2);
 			p3.x = c3(0); p3.y = c3(1); p3.z = c3(2);
 			points.push_back(p1);
@@ -220,22 +221,22 @@ void Robot::UpdateRobotMesh(){
 
         }
 
-		this->GetLinkAt(i)->UpdateTriangularMesh(new_mesh);
+		this->GetLinkAt(i)->UpdateTriangularMesh(new_mesh); // updating the mesh of each link
 
     }
 
-	this->mesh_points.points = points;
+	this->mesh_points.points = points;  // these lines print the updated mesh on RVIZ
 	std_msgs::Header h;
 	h.frame_id = "world";
 	this->mesh_points.header = h;
 
 }
 
+// To compute (sort of) Ragaglia's coefficients, this function is called only once
 void Robot::ComputeCoefficients(){
 	vector<Triangle>::iterator it_t;
 	Eigen::Vector3d * point_A, * point_B, * point_C;
 	Eigen::Vector3d point_P;
-	// list<vector<Eigen::Vector3d>>::iterator it_or = this->ref_origins.begin();
 	Eigen::Vector3d dir_AB, seg_AB, seg_AC;
 
 	unsigned int i;
@@ -272,7 +273,6 @@ void Robot::ComputeCoefficients(){
 			double coord_yB = seg_AB.norm() + coord_yA;
 
 			// (sort of) Ragaglia's coefficients
-			// double coeff_0 = coord_xC * coord_xC / 6.0 + (coord_yB * coord_yB + coord_yB * coord_yA + coord_yA * coord_yA) / 6.0;
 			coeff_0.push_back(coord_xC * coord_xC / 6.0 + (coord_yB * coord_yB + coord_yB * coord_yA + coord_yA * coord_yA) / 6.0);
 			coeff_x.push_back(-2.0 / 3.0 * coord_xC);
 			coeff_y.push_back(-2.0 / 3.0 * (coord_yA + coord_yB));
@@ -288,6 +288,7 @@ void Robot::ComputeCoefficients(){
 
 }
 
+// Computing the CSF knowing positions of triangles (mesh) and of the hand (pointcloud)
 void Robot::ComputeSafetyInd(){
 	vector<Eigen::Vector3d> body_points; // These points will be substituted by actual body points
 	Eigen::Vector3d bp1;
@@ -396,6 +397,8 @@ void Robot::CsfPublisher()
 	this->msg_csf.data = this->csf;
 }
 
+// Callback of subscriber of the topic of joint states, calling SetRobotState
+// to update the robot mesh every time joints positions are changed
 void Robot::ReadAndSetRobot(const sensor_msgs::JointState::ConstPtr& msg){
 	double q[6];
 	for(int i=0; i<6; i++){

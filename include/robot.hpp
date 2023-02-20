@@ -60,19 +60,22 @@ private:
 };
 
 class RobotGripper : public Link {
-	public:
-	using Link::Link;
-	
-	// getter
-	bool IsOpen() { return this->mIsGripperClosed; };
-	// setters
-	void SetClosed() { this->mIsGripperClosed = true; };
-    void SetOpen() { this->mIsGripperClosed = false; };
-
 	private:
-	//Eigen::Matrix4d mRelativeDisplacement;
-	bool mIsGripperClosed;
+		// //Eigen::Matrix4d mRelativeDisplacement;
+		// bool mIsGripperClosed;
+
+	public:
+		// RobotGripper(bool isClosed, double alfa, double a, double d, double offset, double gamma, string path): 
+		// 				Link(alfa,a,d,offset,gamma,path);
 	
+		// // getter
+		// bool IsOpen() { return this->mIsGripperClosed; };
+		// // setters
+		// void SetClosed() { this->mIsGripperClosed = true; };
+    	// void SetOpen() { this->mIsGripperClosed = false; };
+
+	using Link::Link;
+
 };
 
 class Robot {

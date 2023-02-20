@@ -9,11 +9,6 @@ find_package(catkin REQUIRED COMPONENTS
   dsr_msgs
 )
 
-add_service_files(
-  FILES
-  compute.srv
-)
-
 generate_messages(
   DEPENDENCIES
   std_msgs
@@ -26,12 +21,11 @@ catkin_package(
 
 include_directories(
   include
+  /usr/local/include/opencv4
   ~/libraries/eigen-3.4.0
   ~/libraries
   ${catkin_INCLUDE_DIRS}
 )
 
 add_executable(robot_node src/robot_node.cpp src/robot.cpp src/geometry.cpp src/QuickHull.cpp)
-add_executable(robot_old src/robot_old_node.cpp src/robot_old.cpp src/geometry.cpp src/QuickHull.cpp)
 target_link_libraries(robot_node ${catkin_LIBRARIES})
-target_link_libraries(robot_old ${catkin_LIBRARIES})

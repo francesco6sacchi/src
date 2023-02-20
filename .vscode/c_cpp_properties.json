@@ -12,7 +12,8 @@
         "/home/francesco/ROS_ws/src/doosan-robot/common/include/**",
         "/home/francesco/ROS_ws/src/doosan-robot/dsr_control/include/**",
         "/home/francesco/ROS_ws/src/safety_index/include/**",
-        "/usr/include/**"
+        "/usr/include/**",
+        "/home/francesco/libraries/**"
       ],
       "name": "ROS",
       "intelliSenseMode": "gcc-x64",
