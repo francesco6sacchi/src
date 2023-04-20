@@ -69,22 +69,41 @@ Robot::Robot(ros::NodeHandle& input) {
 	}
 	this->mBaseTriangularMesh = &robot_mesh;
 
+	this->move_group_interface = new moveit::planning_interface::MoveGroupInterface("arm");
+	this->planning_scene_interface = new moveit::planning_interface::PlanningSceneInterface;
+	this->joints = this->move_group_interface->getCurrentState()->getJointModelGroup("arm");
+
+	// this->other = new moveit::core::RobotState(*this->other);
+	// this->robotState = new robot_state::RobotState(??);
+	this->robotState = new moveit::core::RobotState(*move_group_interface->getCurrentState());
+
+	// ros::ServiceClient ikinSrv;
+	// dsr_msgs::Ikin ikin;
+	// ikin.request.pos.at(0) = 10.0; ikin.request.pos.at(1) = 10.0; ikin.request.pos.at(2) = 10.0; ikin.request.pos.at(3) = 10.0; ikin.request.pos.at(4) = 10.0; ikin.request.pos.at(5) = 10.0;
+	// ikin.request.sol_space = 6;
+	// ikinSrv.call(ikin);
+	// ROS_INFO("success? %d", ikin.response.success);
+	// ROS_INFO("%lf, %lf, %lf, %lf, %lf, %lf",ikin.response.conv_posj.at(0),ikin.response.conv_posj.at(1),ikin.response.conv_posj.at(2),ikin.response.conv_posj.at(3),ikin.response.conv_posj.at(4),ikin.response.conv_posj.at(5));
+	// ros::ServiceClient moveSrv;
+	// dsr_msgs::MoveJoint move;
+	// move.request.pos.at(0) = 0.0; move.request.pos.at(1) = -90.0; move.request.pos.at(2) = 0.0; move.request.pos.at(3) = 0.0; move.request.pos.at(4) = 0.0; move.request.pos.at(5) = 0.0;
+	// move.request.time = 10.0;
+	// moveSrv.call(move);
+	// ROS_INFO("success? %d", move.response.success);
+
+	
+
 	this->ComputeCoefficients(); // Ragaglia's coefficients: computed once because they are
 								 // constant regardless the position of the triangle
 
 	this->csf=0;
-    this->mPosition = Eigen::Vector3d::Zero();
-    this->mOrientation = Eigen::Matrix3d::Identity();
-    this->mVelocity = Eigen::Vector3d::Zero();
-    this->mAngularVelocity = Eigen::Vector3d::Zero();
-    this->mIsInitialized = false;
 	this->pBase = Eigen::Matrix4d::Identity(4,4);
 	// this->pRobotName = new WCHAR[256]; //? WCHAR non viene trovato
 
 	this->pointcloud = this->nh.advertise<sensor_msgs::PointCloud>("pc_topic",1);
 	this->pointcloud_mesh = this->nh.advertise<sensor_msgs::PointCloud>("mesh_topic",1);
 	this->CsfPublisher(); // initializing publishers
-	this->sub_joint_state = this->nh.subscribe("/dsr01a0509/joint_states", 1, &Robot::ReadAndSetRobot, this);
+	this->sub_joint_state = this->nh.subscribe("/dsr01a0509/joint_states", 1, &Robot::JointStateCallback, this);
 
 	int ndof = this->mLinks.size();
 	Eigen::VectorXd z(ndof); z.setZero();
@@ -94,23 +113,35 @@ Robot::Robot(ros::NodeHandle& input) {
 
 }
 
-void Robot::SetPosition(Eigen::Vector3d& pos, Eigen::Matrix3d& rot) {
-    
-    time_point<system_clock> st = system_clock::now();
-    if(this->mIsInitialized) {
-        Eigen::Matrix3d dotR, S;
-        this->mVelocity = 1E3 * (pos - this->mPosition) / double(duration_cast<milliseconds>(st - this->mTimeStamp).count());
-        dotR = 1E3 * (rot - this->mOrientation) / double(duration_cast<milliseconds>(st - this->mTimeStamp).count());
-        S = dotR * rot.transpose();
-        this->mAngularVelocity(0) = .5 * (S(2,1)-S(1,2));
-        this->mAngularVelocity(1) = .5 * (S(0,2)-S(2,0));
-        this->mAngularVelocity(2) = .5 * (S(1,0)-S(0,1));
-    }
-    this->mPosition = pos;
-    this->mOrientation = rot;
-    this->mTimeStamp = st;
-    this->mIsInitialized = true;
-    
+void Robot::MoveRobot(sensor_msgs::JointState target_joints, bool enable_execution){
+
+	this->move_group_interface->setJointValueTarget(target_joints);
+	move_group_interface->setPlanningTime(10.0);
+
+	moveit::planning_interface::MoveGroupInterface::Plan planner;
+	bool success = (this->move_group_interface->plan(planner) == moveit::core::MoveItErrorCode::SUCCESS);
+	
+	if ( enable_execution )
+		move_group_interface->execute(planner);
+
+
+	ROS_INFO("planning succeded? %d", success);
+
+}
+void Robot::MoveRobot(geometry_msgs::Pose target_pose, bool enable_execution){
+
+	this->move_group_interface->setPoseTarget(target_pose);
+	move_group_interface->setPlanningTime(10.0);
+
+	moveit::planning_interface::MoveGroupInterface::Plan planner;
+	bool success = (this->move_group_interface->plan(planner) == moveit::core::MoveItErrorCode::SUCCESS);
+	
+	if ( enable_execution )
+		move_group_interface->execute(planner);
+
+
+	ROS_INFO("planning succeded? %d", success);
+
 }
 
 void Robot::SetRobotState(double q[6]) {
@@ -138,7 +169,6 @@ void Robot::SetRobotState(double q[6]) {
     // updating scene node properties
     Eigen::Vector3d pos = A.block<3,1>(0,3);
 	Eigen::Matrix3d rot = A.block<3,3>(0,0);
-    this->SetPosition(pos, rot);
 
 	k = 0;
 	for (it = this->mLinks.begin(); it != this->mLinks.end(); ++it) {
@@ -399,7 +429,7 @@ void Robot::CsfPublisher()
 
 // Callback of subscriber of the topic of joint states, calling SetRobotState
 // to update the robot mesh every time joints positions are changed
-void Robot::ReadAndSetRobot(const sensor_msgs::JointState::ConstPtr& msg){
+void Robot::JointStateCallback(const sensor_msgs::JointState::ConstPtr& msg){
 	double q[6];
 	for(int i=0; i<6; i++){
 		q[i] = msg->position[i];
@@ -410,6 +440,14 @@ void Robot::ReadAndSetRobot(const sensor_msgs::JointState::ConstPtr& msg){
 void Robot::Spinner(){
 	this->UpdateRobotMesh();
 	this->pointcloud_mesh.publish(this->mesh_points);
+	// geometry_msgs::Pose target_pose1;
+	// target_pose1.orientation.x = 1.0;
+	// target_pose1.orientation.y = 1.0;
+	// target_pose1.orientation.w = 1.0;
+	// target_pose1.position.x = -0.4;
+	// target_pose1.position.y = 0.2;
+	// target_pose1.position.z = 0.5;
+	// this->MoveRobot(target_pose1, true);
 	this->ComputeSafetyInd();
 	this->pub_csf.publish(msg_csf);
 	this->pointcloud.publish(this->pc);

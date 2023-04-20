@@ -16,10 +16,17 @@
 #include "sensor_msgs/JointState.h"
 
 
+#include "dsr_msgs/Ikin.h"
+#include "dsr_msgs/MoveJoint.h"
+#include "ros/service_client.h"
+
 #define __ROBOT_SPEED_STATUS_UNKNOWN                        0
 #define __ROBOT_SPEED_STATUS_RUNNING                        1
 #define __ROBOT_SPEED_STATUS_SAFETY_EXCEPTION               2
 #define __ROBOT_SPEED_STATUS_RAMP_UP                        3
+
+using namespace std;
+using namespace std::chrono;
 
 typedef Eigen::Matrix<double, 3, Eigen::Dynamic> JacobMatrix;
 
@@ -34,6 +41,8 @@ public:
 	Eigen::Matrix4d* GetCumulatedMatrix() { return &(this->mCumulatedMatrix); };
 	vector<Triangle>* GetTriangularMesh() { return &(this->mTriangularMesh); };
 	vector<Triangle>* GetUpdatedTriangularMesh() { return &(this->mUpdatedTriangularMesh); };
+	JacobMatrix* GetPosJacobian() { return &(this->mPosJacobian); };
+	JacobMatrix* GetOriJacobian() { return &(this->mOriJacobian); };
 	double GetGamma() { return this->mGamma; };
 // setters
 	void SetCumulatedMatrix(Eigen::Matrix4d A) { this->mCumulatedMatrix = A; };
@@ -92,33 +101,36 @@ public:
 	vector<Triangle> robot_mesh;
 
 // methods
-	double DistanceFrom(Robot& n) { return (this->mPosition - *n.GetPosition()).norm(); };
 	int nDOF() { return (int) this->mLinks.size(); };
-	void ReadAndSetRobot(const sensor_msgs::JointState::ConstPtr& msg);
+	void JointStateCallback(const sensor_msgs::JointState::ConstPtr& msg);
 	void UpdateRobotMesh();
 	void ComputeCoefficients();
 	void ComputeSafetyInd();
 
 // getters
-	Eigen::Vector3d* GetPosition() { return &(this->mPosition); };
-    Eigen::Vector3d* GetVelocity() { return &(this->mVelocity); };
-    Eigen::Matrix3d* GetOrientation() { return &(this->mOrientation); };
-    Eigen::Vector3d* GetAngularVelocity() { return &(this->mAngularVelocity); };
-    bool IsInitialized() { return this->mIsInitialized; }; 
-    char GetName() { return this->pRobotName; }; // sarebbe WCHAR ma non viene trovato
-    // Eigen::Matrix4d* GetBase() { return this->pBase; };
+	// Eigen::Matrix4d* GetBase() { return this->pBase; };
 	Eigen::Matrix4d GetBase() { return this->pBase; };
-	Eigen::VectorXd* GetRobotPosition() { return &(this->mJointPos); };
+	Eigen::VectorXd GetRobotPosition() { return (this->mJointPos); };
 	Link* GetLinkAt(unsigned int i);
 	Eigen::Matrix4d* GetCumulatedMatrix(unsigned int i) { return this->GetLinkAt(i)->GetCumulatedMatrix(); };
     vector<Triangle>* GetTriangularMesh() { return this->mBaseTriangularMesh; };
+    JacobMatrix* GetPosJacobian(unsigned int i) { return this->GetLinkAt(i)->GetPosJacobian(); };
+	JacobMatrix* GetOriJacobian(unsigned int i) { return this->GetLinkAt(i)->GetOriJacobian(); };
 
 // setters
-    void SetPosition(Eigen::Vector3d& pos, Eigen::Matrix3d& rot);
 	void SetRobotState(double pos[6]);
 
 // publishers
 	void CsfPublisher();
+
+	moveit::planning_interface::MoveGroupInterface* move_group_interface;
+	moveit::planning_interface::PlanningSceneInterface* planning_scene_interface;
+	const robot_state::JointModelGroup* joints;
+	moveit::core::RobotState* robotState;
+    // robot_state::RobotState* robotState;
+	// const moveit::core::RobotState* other;
+	void MoveRobot(geometry_msgs::Pose target_pose, bool enable_execution = false);
+	void MoveRobot(sensor_msgs::JointState target_joints, bool enable_execution = false);
 
 private:
 // ROS handling
@@ -132,15 +144,7 @@ private:
 	std_msgs::Float64 msg_csf;
 
 // data
-    bool mIsInitialized;
-    Eigen::Vector3d mPosition;
-    Eigen::Vector3d mVelocity;
-    Eigen::Matrix3d mOrientation;
-    Eigen::Vector3d mAngularVelocity;
-    time_point<system_clock> mTimeStamp;
-//	WCHAR* pRobotName;
-	char pRobotName;
-	Eigen::Matrix4d pBase;
+    Eigen::Matrix4d pBase;
 	Eigen::VectorXd mJointPos;
 	Eigen::VectorXd mJointVel;
 	list<Link> mLinks;

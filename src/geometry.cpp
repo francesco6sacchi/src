@@ -2,9 +2,7 @@
 #include "../include/QuickHull.hpp"
 
 #include <numeric>      // std::accumulate
-#include <math.h>
 #include <assert.h>
-#include <iostream>
 #include <float.h>
 #include <vector>
 #include <Eigen/SVD>
@@ -249,58 +247,6 @@ Eigen::Vector3d* PointCloud::Append(Eigen::Vector3d p) {
     
 }
 
-/*void PointCloud::ComputeConvexHull(list<Triangle>& chull) {
-    
-    // from Eigen to quickhull
-    list<Eigen::Vector3d>::iterator it;
-    vector<quickhull::Vector3<double>> pointCloud;
-    for(it = this->mPoints.begin(); it != this->mPoints.end(); ++it) pointCloud.push_back( quickhull::Vector3<double>( (*it)(0), (*it)(1), (*it)(2)) );
-    
-    // Computing centroid (just averaging the vertices)
-    Eigen::Vector3d c = Eigen::Vector3d::Zero();
-    vector<quickhull::Vector3<double>>::iterator itv;
-    for(itv = pointCloud.begin(); itv != pointCloud.end(); ++itv) c += Eigen::Vector3d(itv->x, itv->y, itv->z);
-    c /= (double) pointCloud.size();
-    
-    // Compute convex hull
-    quickhull::QuickHull<double> qh;
-    auto hull = qh.getConvexHull(pointCloud, true, false);
-    const auto& indexBuffer = hull.getIndexBuffer();
-    const auto& vertexBuffer = hull.getVertexBuffer();
-    
-    // Extract mesh and normals
-    chull.clear();
-    Eigen::Vector3d p1, p2, p3, n;
-    for(size_t i = 0; i < indexBuffer.size(); i+=3) {
-        p1 = Eigen::Vector3d(vertexBuffer[indexBuffer[i]].x,   vertexBuffer[indexBuffer[i]].y,   vertexBuffer[indexBuffer[i]].z);
-        p2 = Eigen::Vector3d(vertexBuffer[indexBuffer[i+1]].x, vertexBuffer[indexBuffer[i+1]].y, vertexBuffer[indexBuffer[i+1]].z);
-        p3 = Eigen::Vector3d(vertexBuffer[indexBuffer[i+2]].x, vertexBuffer[indexBuffer[i+2]].y, vertexBuffer[indexBuffer[i+2]].z);
-        n = ((p2 - p1).cross(p3 - p1)).normalized();
-        if(n.dot(c - p1) < .0) chull.push_back(Triangle(p1, p2, p3, n));
-        else chull.push_back(Triangle(p1, p2, p3, -n));
-    }
-    
-}*/
-
-void PointCloud::SweepLin(Eigen::Vector3d dir, double tinf, double tsup) {
-
-    if (this->mPoints.size() == 0) throw EMPTY_POINT_CLOUD_EXCEPTION;
-    if(tinf > tsup) throw NON_NEGATIVE_VALUE_EXCEPTION;
-    dir.normalize();
-    
-    list<Eigen::Vector3d>::iterator it;
-    PointCloud npc = PointCloud();
-    
-    // Computing new points
-    for (it = this->mPoints.begin(); it != this->mPoints.end(); ++it) npc.Append((*it) + dir*tinf);
-    for (it = this->mPoints.begin(); it != this->mPoints.end(); ++it) npc.Append((*it) + dir*tsup);
-    
-    // Appending new points to original point cloud
-    this->mPoints.clear();
-    for (it = npc.mPoints.begin(); it != npc.mPoints.end(); ++it) this->Append(*it);
-
-}
-
 void PointCloud::SweepRot(Eigen::Matrix4d T, unsigned int a, bool flipAxis, double tinf, double tsup) {
     
     if (this->mPoints.size() == 0) throw EMPTY_POINT_CLOUD_EXCEPTION;
@@ -317,7 +263,7 @@ void PointCloud::SweepRot(Eigen::Matrix4d T, unsigned int a, bool flipAxis, doub
     Eigen::Matrix3d Rsup; Rsup = Eigen::AngleAxisd(tsup, Axis);
     
     // Computing new points
-    list<Eigen::Vector3d>::iterator it;
+    std::list<Eigen::Vector3d>::iterator it;
     for (it = this->mPoints.begin(); it != this->mPoints.end(); ++it) {
         p1 = Rinf*(RotT*(*it)-RotT*Tran);
         p2 = Rsup*(RotT*(*it)-RotT*Tran);
@@ -336,12 +282,12 @@ void PointCloud::SweepRot(Eigen::Matrix4d T, unsigned int a, bool flipAxis, doub
 }
 
 // additional functions
-vector<Triangle> ParseSTLfile(string path) {
+std::vector<Triangle> ParseSTLfile(std::string path) {
 
-    ifstream STLfile(path.c_str(), ios::in | ios::binary);
+    std::ifstream STLfile(path.c_str(), std::ios::in | std::ios::binary);
     if (!STLfile) throw FILE_HANDLING_EXCEPTION;
 
-    vector<Triangle> output;
+    std::vector<Triangle> output;
     Eigen::Vector3d v1, v2, v3, n;
     float* f_ptr;
     char header_info[80] = "", n_triangles[4], dummy[2], f_buf[sizeof(float)];
@@ -392,7 +338,7 @@ vector<Triangle> ParseSTLfile(string path) {
 
 }
 
-double RegisterPoints(vector<Eigen::Vector3d>* pSet1, vector<Eigen::Vector3d>* pSet2, Eigen::Matrix4d* pResult) {
+double RegisterPoints(std::vector<Eigen::Vector3d>* pSet1, std::vector<Eigen::Vector3d>* pSet2, Eigen::Matrix4d* pResult) {
     
     double max_error, error;
     *pResult = Eigen::Matrix4d::Identity();

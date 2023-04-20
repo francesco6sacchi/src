@@ -12,7 +12,7 @@
 class Triangle;
 
 // Support methods
-std::vector<Triangle> ParseSTLfile(string path);
+std::vector<Triangle> ParseSTLfile(std::string path);
 double RegisterPoints(std::vector<Eigen::Vector3d>* pSet1, std::vector<Eigen::Vector3d>* pSet2, Eigen::Matrix4d* pResult);
 
 class Segment {
@@ -88,21 +88,9 @@ private:
 
 class PointCloud {
 public:
-// constructors
-	PointCloud() { this->mPoints = std::list<Eigen::Vector3d>(); };
-	PointCloud(std::list<Eigen::Vector3d> points) { this->mPoints = points; };
-	PointCloud(std::list<Eigen::Vector3d>* pPoints) { this->mPoints = *pPoints; };
-// methods
-    int Size() { return this->mPoints.size(); };
 	Eigen::Vector3d* Append(Eigen::Vector3d p);
-	void CleanUp() { this->mPoints.clear(); };
-    void SweepLin(Eigen::Vector3d dir, double tinf, double tsup);
     void SweepRot(Eigen::Matrix4d T, unsigned int a, bool flipAxis, double tinf, double tsup);
-    void ComputeConvexHull(std::list<Triangle>& chull);
-// getters
-	std::list<Eigen::Vector3d>* GetPoints() { return &(this->mPoints); };
 protected:
-// data
     std::list<Eigen::Vector3d> mPoints;
 };
 
