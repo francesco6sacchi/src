@@ -1,0 +1,19 @@
+<launch>
+
+    <arg name="ns"    default="dsr01a0509"/>
+    <!-- <arg name="model" default="a0509"/> -->
+    <!-- <rosparam file="$(find dsr_control)/config/dsr_control.yaml" command="load" ns="$(arg ns)$(arg model)"/> -->
+    
+    <node pkg="robot" type="grasp_planning_node" name="grasp_planning">
+        <param name="name" value="$(arg ns)"/>
+        <!-- <param name="model" value="$(arg model)"/> -->
+
+    </node>
+
+    <!-- <group if="$(eval arg('model') == 'a0509')">
+        <include file="$(find moveit_config_a0509_merlin)/launch/a0509.launch" ns="$(arg ns)$(arg model)">
+            <arg name="fake_execution" value="false"/>
+        </include>
+    </group> -->
+
+</launch>
